@@ -1,8 +1,9 @@
 "use client"
 
+import { chatApi } from "@/lib/api"
 import { useAppStore } from "@/lib/store"
 import { FileText, Image, Link as LinkIcon, Phone, Video, X } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 // File type icon component matching Figma design
 function FileIcon({ type }: { type: string }) {
@@ -27,6 +28,22 @@ function FileIcon({ type }: { type: string }) {
           AI
         </div>
       )
+    case 'doc':
+    case 'docx':
+      return (
+        <div className={`${baseClasses} bg-blue-500 text-white`}>
+          DOC
+        </div>
+      )
+    case 'jpg':
+    case 'jpeg':
+    case 'png':
+    case 'gif':
+      return (
+        <div className={`${baseClasses} bg-green-500 text-white`}>
+          <Image size={18} />
+        </div>
+      )
     default:
       return (
         <div className={`${baseClasses} bg-gray-400 text-white`}>
@@ -36,11 +53,39 @@ function FileIcon({ type }: { type: string }) {
   }
 }
 
+interface MediaItem {
+  id: string
+  url: string
+  type: string
+  name: string
+  createdAt: string
+}
+
+interface LinkItem {
+  id: string
+  url: string
+  title: string
+  description?: string
+  createdAt: string
+}
+
+interface DocItem {
+  id: string
+  name: string
+  type: string
+  size: string
+  pages?: string
+  url: string
+  createdAt: string
+}
+
 export function ContactInfoPanel() {
   const { selectedContactInfo, toggleInfoPanel, isInfoPanelOpen, sessions, selectedSessionId, currentUser } = useAppStore()
   const [activeTab, setActiveTab] = useState<"Media" | "Link" | "Docs">("Docs")
-
-  if (!isInfoPanelOpen) return null
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
+  const [linkItems, setLinkItems] = useState<LinkItem[]>([])
+  const [docItems, setDocItems] = useState<DocItem[]>([])
+  const [isLoading, setIsLoading] = useState(false)
 
   // Get the selected session to extract user info
   const selectedSession = sessions.find(s => s.id === selectedSessionId)
@@ -52,44 +97,66 @@ export function ContactInfoPanel() {
 
   const contactInfo = otherUser?.user || selectedContactInfo
 
+  // Fetch data based on active tab
+  useEffect(() => {
+    if (!selectedSessionId || !isInfoPanelOpen) return
+
+    const fetchData = async () => {
+      setIsLoading(true)
+      try {
+        if (activeTab === "Media") {
+          const data = await chatApi.getSessionMedia(selectedSessionId)
+          setMediaItems(data || [])
+        } else if (activeTab === "Link") {
+          const data = await chatApi.getSessionLinks(selectedSessionId)
+          setLinkItems(data || [])
+        } else if (activeTab === "Docs") {
+          const data = await chatApi.getSessionDocs(selectedSessionId)
+          setDocItems(data || [])
+        }
+      } catch (error) {
+        console.error(`Failed to fetch ${activeTab}:`, error)
+        // Fallback to empty arrays on error
+        if (activeTab === "Media") setMediaItems([])
+        if (activeTab === "Link") setLinkItems([])
+        if (activeTab === "Docs") setDocItems([])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [activeTab, selectedSessionId, isInfoPanelOpen])
+
+  if (!isInfoPanelOpen) return null
+
   if (!contactInfo) return null
 
-  // Mock documents for demo - matching Figma design
-  const todayDocuments = [
-    {
-      name: "Document Requirement.pdf",
-      pages: "10 pages",
-      size: "16 MB",
-      type: "pdf",
-    },
-    {
-      name: "User Flow.pdf",
-      pages: "7 pages",
-      size: "32 MB",
-      type: "pdf",
-    },
-    {
-      name: "Existing App.fig",
-      pages: "",
-      size: "213 MB",
-      type: "fig",
-    },
-  ]
+  // Group docs by date
+  const groupDocsByDate = (docs: DocItem[]) => {
+    const today = new Date()
+    const todayDocs: DocItem[] = []
+    const otherDocs: { [key: string]: DocItem[] } = {}
 
-  const mayDocuments = [
-    {
-      name: "Product Illustrations.ai",
-      pages: "",
-      size: "22 MB",
-      type: "ai",
-    },
-    {
-      name: "Quotation-Hikanworks-May.pdf",
-      pages: "7 pages",
-      size: "520 KB",
-      type: "pdf",
-    }
-  ]
+    docs.forEach(doc => {
+      const docDate = new Date(doc.createdAt)
+      const isToday = docDate.toDateString() === today.toDateString()
+      
+      if (isToday) {
+        todayDocs.push(doc)
+      } else {
+        const monthYear = docDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        if (!otherDocs[monthYear]) {
+          otherDocs[monthYear] = []
+        }
+        otherDocs[monthYear].push(doc)
+      }
+    })
+
+    return { todayDocs, otherDocs }
+  }
+
+  const { todayDocs, otherDocs } = groupDocsByDate(docItems)
 
   return (
     <>
@@ -183,65 +250,157 @@ export function ContactInfoPanel() {
         <div className="flex-1 overflow-y-auto bg-gray-50/50 dark:bg-gray-900/30">
           {activeTab === "Link" && (
             <div className="p-6">
-              <div className="text-center text-gray-400 py-8">
-                <LinkIcon size={48} className="mx-auto mb-2 opacity-20" />
-                <p className="text-sm">No shared links yet</p>
-              </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                </div>
+              ) : linkItems.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <LinkIcon size={48} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No shared links yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {linkItems.map((link) => (
+                    <a
+                      key={link.id}
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block p-3 bg-white dark:bg-gray-800 rounded-lg hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700"
+                    >
+                      <div className="flex items-start gap-3">
+                        <LinkIcon size={16} className="text-emerald-500 mt-1" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{link.title || link.url}</p>
+                          {link.description && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{link.description}</p>
+                          )}
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            {new Date(link.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === "Media" && (
             <div className="p-6">
-              <div className="text-center text-gray-400 py-8">
-                <Image size={48} className="mx-auto mb-2 opacity-20" />
-                <p className="text-sm">No shared media yet</p>
-              </div>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                </div>
+              ) : mediaItems.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <Image size={48} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No shared media yet</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {mediaItems.map((media) => (
+                    <a
+                      key={media.id}
+                      href={media.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="aspect-square rounded-lg overflow-hidden hover:opacity-80 transition-opacity"
+                    >
+                      {media.type.startsWith('image/') ? (
+                        <img
+                          src={media.url}
+                          alt={media.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                          <FileText size={24} className="text-gray-400" />
+                        </div>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === "Docs" && (
             <div>
-              {/* Today Section Header */}
-              <div className="px-5 py-2.5 bg-gray-100/80 dark:bg-gray-800">
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Today</p>
-              </div>
-              {/* Today Documents */}
-              <div className="bg-white dark:bg-gray-800">
-                {todayDocuments.map((doc, idx) => (
-                  <div key={idx} className="px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                    <div className="flex items-center gap-3">
-                      <FileIcon type={doc.type} />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{doc.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {doc.pages && `${doc.pages} • `}{doc.size} • {doc.type}
-                        </p>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
+                </div>
+              ) : docItems.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <FileText size={48} className="mx-auto mb-2 opacity-20" />
+                  <p className="text-sm">No shared documents yet</p>
+                </div>
+              ) : (
+                <>
+                  {/* Today Section */}
+                  {todayDocs.length > 0 && (
+                    <>
+                      <div className="px-5 py-2.5 bg-gray-100/80 dark:bg-gray-800">
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Today</p>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      <div className="bg-white dark:bg-gray-800">
+                        {todayDocs.map((doc) => (
+                          <a
+                            key={doc.id}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileIcon type={doc.type} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{doc.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {doc.pages && `${doc.pages} • `}{doc.size}
+                                </p>
+                              </div>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    </>
+                  )}
 
-              {/* May Section Header */}
-              <div className="px-5 py-2.5 bg-gray-100/80 dark:bg-gray-800">
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">May</p>
-              </div>
-              {/* May Documents */}
-              <div className="bg-white dark:bg-gray-800">
-                {mayDocuments.map((doc, idx) => (
-                  <div key={idx} className="px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
-                    <div className="flex items-center gap-3">
-                      <FileIcon type={doc.type} />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{doc.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {doc.pages && `${doc.pages} • `}{doc.size} • {doc.type}
-                        </p>
+                  {/* Other months */}
+                  {Object.entries(otherDocs).map(([monthYear, docs]) => (
+                    <div key={monthYear}>
+                      <div className="px-5 py-2.5 bg-gray-100/80 dark:bg-gray-800">
+                        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{monthYear}</p>
+                      </div>
+                      <div className="bg-white dark:bg-gray-800">
+                        {docs.map((doc) => (
+                          <a
+                            key={doc.id}
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                          >
+                            <div className="flex items-center gap-3">
+                              <FileIcon type={doc.type} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 dark:text-white text-sm truncate">{doc.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {doc.pages && `${doc.pages} • `}{doc.size}
+                                </p>
+                              </div>
+                            </div>
+                          </a>
+                        ))}
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
         </div>

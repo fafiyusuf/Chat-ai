@@ -16,6 +16,7 @@ export interface User {
 export interface Message {
   id: string;
   content: string;
+  type?: 'TEXT' | 'IMAGE' | 'FILE' | 'SYSTEM';
   senderId: string;
   sessionId: string;
   createdAt: string;

@@ -17,6 +17,7 @@ export const getRefreshToken = () => {
 
 export const setTokens = (accessToken: string, refreshToken: string) => {
   if (typeof window !== 'undefined') {
+    console.log('setTokens: Storing tokens, accessToken length:', accessToken?.length, 'refreshToken length:', refreshToken?.length)
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
   }
@@ -24,6 +25,7 @@ export const setTokens = (accessToken: string, refreshToken: string) => {
 
 export const clearTokens = () => {
   if (typeof window !== 'undefined') {
+    console.log('clearTokens: Removing all tokens')
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
   }
@@ -31,7 +33,21 @@ export const clearTokens = () => {
 
 // API helper with auth
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const accessToken = getAccessToken();
+  let accessToken = getAccessToken();
+  
+  console.log('fetchWithAuth:', url, 'hasAccessToken:', !!accessToken, 'hasRefreshToken:', !!getRefreshToken())
+  
+  // If no access token but we have refresh token, try to refresh first
+  if (!accessToken && getRefreshToken()) {
+    console.log('fetchWithAuth: No access token, attempting refresh...')
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      accessToken = getAccessToken();
+      console.log('fetchWithAuth: Refresh successful, got new access token')
+    } else {
+      console.log('fetchWithAuth: Refresh failed')
+    }
+  }
   
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -47,15 +63,22 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
     headers,
   });
 
+  console.log('fetchWithAuth:', url, 'response status:', response.status)
+
   // If unauthorized, try to refresh token
   if (response.status === 401 && getRefreshToken()) {
+    console.log('fetchWithAuth: Got 401, attempting token refresh...');
     const refreshed = await refreshAccessToken();
     if (refreshed) {
+      console.log('fetchWithAuth: Refresh successful, retrying request...');
       (headers as Record<string, string>)['Authorization'] = `Bearer ${getAccessToken()}`;
       response = await fetch(`${API_URL}${url}`, {
         ...options,
         headers,
       });
+      console.log('fetchWithAuth: Retry response status:', response.status);
+    } else {
+      console.log('fetchWithAuth: Refresh failed on 401 retry');
     }
   }
 
@@ -65,6 +88,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
 async function refreshAccessToken(): Promise<boolean> {
   try {
     const refreshToken = getRefreshToken();
+    console.log('refreshAccessToken: Attempting refresh, hasToken:', !!refreshToken)
     if (!refreshToken) return false;
 
     const response = await fetch(`${API_URL}/api/auth/refresh`, {
@@ -73,16 +97,21 @@ async function refreshAccessToken(): Promise<boolean> {
       body: JSON.stringify({ refreshToken }),
     });
 
+    console.log('refreshAccessToken: Response status:', response.status)
+
     if (response.ok) {
       const data = await response.json();
+      console.log('refreshAccessToken: Got new access token')
       localStorage.setItem('accessToken', data.accessToken);
       return true;
     }
     
     // Refresh failed, clear tokens
+    console.log('refreshAccessToken: Failed, clearing tokens')
     clearTokens();
     return false;
-  } catch {
+  } catch (err) {
+    console.error('refreshAccessToken: Error:', err)
     clearTokens();
     return false;
   }
@@ -220,6 +249,41 @@ export const chatApi = {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete session');
+    return response.json();
+  },
+
+  async getSessionMedia(sessionId: string) {
+    const response = await fetchWithAuth(`/api/chat/sessions/${sessionId}/media`);
+    if (!response.ok) throw new Error('Failed to fetch session media');
+    return response.json();
+  },
+
+  async getSessionLinks(sessionId: string) {
+    const response = await fetchWithAuth(`/api/chat/sessions/${sessionId}/links`);
+    if (!response.ok) throw new Error('Failed to fetch session links');
+    return response.json();
+  },
+
+  async getSessionDocs(sessionId: string) {
+    const response = await fetchWithAuth(`/api/chat/sessions/${sessionId}/docs`);
+    if (!response.ok) throw new Error('Failed to fetch session documents');
+    return response.json();
+  },
+
+  async uploadFile(sessionId: string, file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    });
+    
+    if (!response.ok) throw new Error('Failed to upload file');
     return response.json();
   },
 };

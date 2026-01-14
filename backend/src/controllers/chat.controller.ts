@@ -386,3 +386,199 @@ export const markMessageAsRead = async (
     res.status(500).json({ error: 'Failed to mark message as read' });
   }
 };
+
+// Get session media (images, videos)
+export const getSessionMedia = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { sessionId } = req.params;
+
+    // Verify user is part of the session
+    const session = await prisma.chatSession.findFirst({
+      where: {
+        id: sessionId,
+        users: {
+          some: {
+            userId: req.user.userId,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    // Get messages with image content
+    const mediaMessages = await prisma.message.findMany({
+      where: {
+        sessionId,
+        type: 'IMAGE',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        content: true,
+        type: true,
+        createdAt: true,
+      },
+    });
+
+    // Transform to media items
+    const mediaItems = mediaMessages.map(msg => ({
+      id: msg.id,
+      url: msg.content,
+      type: 'image',
+      name: `image-${msg.id}`,
+      createdAt: msg.createdAt,
+    }));
+
+    res.json(mediaItems);
+  } catch (error) {
+    logger.error('Get session media error:', error);
+    res.status(500).json({ error: 'Failed to fetch session media' });
+  }
+};
+
+// Get session links
+export const getSessionLinks = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { sessionId } = req.params;
+
+    // Verify user is part of the session
+    const session = await prisma.chatSession.findFirst({
+      where: {
+        id: sessionId,
+        users: {
+          some: {
+            userId: req.user.userId,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    // Get messages that contain URLs (simplified - you may want to use a more robust URL detection)
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const messages = await prisma.message.findMany({
+      where: {
+        sessionId,
+        type: 'TEXT',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    const linkItems = messages
+      .filter(msg => urlRegex.test(msg.content))
+      .map(msg => {
+        const urls = msg.content.match(urlRegex) || [];
+        return urls.map(url => ({
+          id: `${msg.id}-${url}`,
+          url,
+          title: url,
+          description: msg.content.replace(url, '').trim(),
+          createdAt: msg.createdAt,
+        }));
+      })
+      .flat();
+
+    res.json(linkItems);
+  } catch (error) {
+    logger.error('Get session links error:', error);
+    res.status(500).json({ error: 'Failed to fetch session links' });
+  }
+};
+
+// Get session documents (PDFs, DOCs, etc.)
+export const getSessionDocs = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { sessionId } = req.params;
+
+    // Verify user is part of the session
+    const session = await prisma.chatSession.findFirst({
+      where: {
+        id: sessionId,
+        users: {
+          some: {
+            userId: req.user.userId,
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    // Get messages with file content
+    const docMessages = await prisma.message.findMany({
+      where: {
+        sessionId,
+        type: 'FILE',
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        content: true,
+        type: true,
+        createdAt: true,
+      },
+    });
+
+    // Transform to doc items
+    const docItems = docMessages.map(msg => {
+      const fileName = msg.content.split('/').pop() || 'document';
+      const fileExtension = fileName.split('.').pop()?.toLowerCase() || 'file';
+      
+      return {
+        id: msg.id,
+        name: fileName,
+        type: fileExtension,
+        size: 'Unknown',
+        pages: '',
+        url: msg.content,
+        createdAt: msg.createdAt,
+      };
+    });
+
+    res.json(docItems);
+  } catch (error) {
+    logger.error('Get session docs error:', error);
+    res.status(500).json({ error: 'Failed to fetch session documents' });
+  }
+};

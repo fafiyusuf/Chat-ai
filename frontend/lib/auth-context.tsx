@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react'
-import { authApi, clearTokens, getAccessToken } from './api'
+import { authApi, getAccessToken, getRefreshToken } from './api'
 import { disconnectSocket, initSocket } from './socket'
 
 interface User {
@@ -36,26 +36,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const checkAuth = async () => {
     const token = getAccessToken()
-    if (!token) {
+    const refreshTokenValue = getRefreshToken()
+    
+    console.log('CheckAuth: accessToken exists:', !!token, 'refreshToken exists:', !!refreshTokenValue)
+    
+    // Only proceed if we have at least one token
+    if (!token && !refreshTokenValue) {
+      console.log('CheckAuth: No tokens found, setting loading false')
       setIsLoading(false)
       return
     }
 
-    try {
-      const data = await authApi.getProfile()
-      setUser(data.user)
-      // Initialize socket connection
+    // Try up to 2 times (initial + 1 retry after potential refresh)
+    let attempts = 0
+    const maxAttempts = 2
+    
+    while (attempts < maxAttempts) {
+      attempts++
       try {
-        initSocket()
-      } catch (e) {
-        console.error('Socket init error:', e)
+        console.log(`CheckAuth: Attempt ${attempts} to get profile`)
+        const data = await authApi.getProfile()
+        // Backend returns user object directly, not wrapped in { user: ... }
+        const userData = data.user || data
+        console.log('CheckAuth: Profile fetched successfully', userData?.email)
+        setUser(userData)
+        // Initialize socket connection
+        try {
+          initSocket()
+        } catch (e) {
+          console.error('Socket init error:', e)
+        }
+        setIsLoading(false)
+        return // Success, exit
+      } catch (error) {
+        console.error(`Auth check attempt ${attempts} failed:`, error)
+        
+        // Check if we still have tokens after this attempt
+        const stillHasRefreshToken = getRefreshToken()
+        const stillHasAccessToken = getAccessToken()
+        console.log('CheckAuth: After error - accessToken:', !!stillHasAccessToken, 'refreshToken:', !!stillHasRefreshToken)
+        
+        // If no tokens left, break out
+        if (!stillHasRefreshToken && !stillHasAccessToken) {
+          console.log('CheckAuth: No tokens remaining, user logged out')
+          break
+        }
+        
+        // If this was the last attempt, break
+        if (attempts >= maxAttempts) {
+          console.log('CheckAuth: Max attempts reached')
+          break
+        }
+        
+        // Wait a bit before retry
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
-    } catch (error) {
-      console.error('Auth check failed:', error)
-      clearTokens()
-    } finally {
-      setIsLoading(false)
     }
+    
+    setIsLoading(false)
   }
 
   const login = async (email: string, password: string) => {

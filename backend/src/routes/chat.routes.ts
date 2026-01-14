@@ -4,6 +4,9 @@ import {
     createChatSession,
     getChatSessionById,
     getChatSessions,
+    getSessionDocs,
+    getSessionLinks,
+    getSessionMedia,
     getSessionMessages,
     markMessageAsRead,
     sendMessage,
@@ -32,6 +35,15 @@ router.post(
 
 // Get messages for a session
 router.get('/sessions/:id/messages', getSessionMessages);
+
+// Get session media
+router.get('/sessions/:sessionId/media', getSessionMedia);
+
+// Get session links
+router.get('/sessions/:sessionId/links', getSessionLinks);
+
+// Get session documents
+router.get('/sessions/:sessionId/docs', getSessionDocs);
 
 // Send a message
 router.post(

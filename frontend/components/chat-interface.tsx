@@ -2,9 +2,17 @@
 
 import { useAuth } from "@/lib/auth-context"
 import { useAppStore } from "@/lib/store"
-import { Info, Mic, MoreVertical, Paperclip, Phone, Search, Send, Smile, Video } from "lucide-react"
+import { Info, Mic, MoreVertical, Paperclip, Phone, Search, Send, Smile, Square, Video, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
+// Dynamic import for emoji picker (client-side only)
+let Picker: any = null
+if (typeof window !== 'undefined') {
+  import('emoji-picker-element').then(module => {
+    Picker = module.default || module
+  })
+}
+ 
 export function ChatInterface() {
   const { user } = useAuth()
   const { 
@@ -19,7 +27,17 @@ export function ChatInterface() {
   
   const [messageInput, setMessageInput] = useState("")
   const [isSending, setIsSending] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+  const emojiPickerInstanceRef = useRef<any>(null)
 
   // Get current session
   const selectedSession = sessions.find(s => s.id === selectedSessionId)
@@ -54,6 +72,136 @@ export function ChatInterface() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
+  // Initialize emoji picker
+  useEffect(() => {
+    if (showEmojiPicker && emojiPickerRef.current && typeof window !== 'undefined' && !emojiPickerInstanceRef.current) {
+      import('emoji-picker-element').then((module) => {
+        const PickerConstructor = module.Picker
+        const picker = new PickerConstructor()
+        
+        // Style the picker
+        picker.classList.add('emoji-picker-custom')
+        
+        // Handle emoji selection
+        picker.addEventListener('emoji-click', (event: any) => {
+          setMessageInput(prev => prev + event.detail.unicode)
+          setShowEmojiPicker(false)
+        })
+        
+        emojiPickerRef.current?.appendChild(picker)
+        emojiPickerInstanceRef.current = picker
+      })
+    }
+    
+    // Cleanup
+    return () => {
+      if (emojiPickerInstanceRef.current && emojiPickerRef.current) {
+        emojiPickerRef.current.innerHTML = ''
+        emojiPickerInstanceRef.current = null
+      }
+    }
+  }, [showEmojiPicker])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current)
+      }
+      if (mediaRecorderRef.current && isRecording) {
+        mediaRecorderRef.current.stop()
+      }
+    }
+  }, [isRecording])
+
+  // Close emoji picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        const target = event.target as HTMLElement
+        // Don't close if clicking the emoji button itself
+        if (!target.closest('[data-emoji-button]')) {
+          setShowEmojiPicker(false)
+        }
+      }
+    }
+
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showEmojiPicker])
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedFile(file)
+      
+      // Create preview URL for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64Data = reader.result as string
+          setFilePreviewUrl(base64Data)
+          // Set the message input to the image data for sending
+          setMessageInput(base64Data)
+        }
+        reader.readAsDataURL(file)
+      } else {
+        setFilePreviewUrl(null)
+        // For non-image files, just show the filename
+        setMessageInput(`📎 ${file.name}`)
+      }
+      
+      console.log("File selected:", file.name)
+    }
+  }
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      
+      const audioChunks: Blob[] = []
+      
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data)
+      }
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' })
+        console.log("Recording stopped, blob size:", audioBlob.size)
+        // Here you would upload the audio blob
+        setMessageInput(`🎤 Voice message (${recordingTime}s)`)
+        setRecordingTime(0)
+        stream.getTracks().forEach(track => track.stop())
+      }
+      
+      mediaRecorder.start()
+      setIsRecording(true)
+      
+      // Start timer
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+      
+    } catch (error) {
+      console.error("Error accessing microphone:", error)
+      alert("Could not access microphone. Please check permissions.")
+    }
+  }
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current)
+      }
+    }
+  }
+
   if (!selectedSession) {
     return (
       <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl flex items-center justify-center shadow-sm">
@@ -68,6 +216,9 @@ export function ChatInterface() {
       try {
         await sendMessageAction(messageInput)
         setMessageInput("")
+        // Clear file preview after sending
+        setSelectedFile(null)
+        setFilePreviewUrl(null)
       } catch (error) {
         console.error("Failed to send message:", error)
       } finally {
@@ -80,6 +231,43 @@ export function ChatInterface() {
   const formatMessageTime = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  }
+
+  // Check if content is an image URL or base64
+  const isImageContent = (content: string, type?: string) => {
+    if (type === 'IMAGE') return true
+    // Check for image URLs
+    const imageExtensions = /\.(jpg|jpeg|png|gif|webp|svg|bmp)(\?.*)?$/i
+    const isDataUrl = content.startsWith('data:image/')
+    const isImageUrl = imageExtensions.test(content) || content.includes('/images/') || content.includes('cloudinary') || content.includes('imgur')
+    return isDataUrl || (isImageUrl && content.startsWith('http'))
+  }
+
+  // Render message content based on type
+  const renderMessageContent = (message: { content: string; type?: string }) => {
+    if (isImageContent(message.content, message.type)) {
+      return (
+        <img 
+          src={message.content} 
+          alt="Shared image" 
+          className="max-w-full max-h-64 rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity"
+          onClick={() => window.open(message.content, '_blank')}
+        />
+      )
+    }
+    
+    // Check for file attachments (📎 prefix)
+    if (message.content.startsWith('📎 ')) {
+      const fileName = message.content.substring(3)
+      return (
+        <div className="flex items-center gap-2">
+          <Paperclip size={16} className="text-current opacity-70" />
+          <span className="text-sm">{fileName}</span>
+        </div>
+      )
+    }
+    
+    return <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
   }
 
   // Check if message is from current user
@@ -164,23 +352,27 @@ export function ChatInterface() {
                     {!isOwnMessage(message.senderId) && (
                       <div className="flex items-end gap-2">
                         <div
-                          className="px-4 py-2 rounded-2xl bg-white dark:bg-gray-800 text-foreground shadow-sm"
+                          className={`px-4 py-2 rounded-2xl bg-white dark:bg-gray-800 text-foreground shadow-sm ${
+                            isImageContent(message.content, message.type) ? 'p-2' : ''
+                          }`}
                         >
                           {!isOwnMessage(message.senderId) && selectedSession.isGroup && (
                             <p className="text-xs font-semibold mb-1 opacity-70">
                               {message.sender?.displayName || "Unknown"}
                             </p>
                           )}
-                          <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
+                          {renderMessageContent(message)}
                         </div>
                       </div>
                     )}
                     {isOwnMessage(message.senderId) && (
                       <div className="flex items-end gap-2 justify-end">
                         <div
-                          className="px-4 py-2 rounded-2xl bg-emerald-100 dark:bg-emerald-900/50 text-gray-800 dark:text-gray-100 shadow-sm"
+                          className={`px-4 py-2 rounded-2xl bg-emerald-100 dark:bg-emerald-900/50 text-gray-800 dark:text-gray-100 shadow-sm ${
+                            isImageContent(message.content, message.type) ? 'p-2' : ''
+                          }`}
                         >
-                          <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
+                          {renderMessageContent(message)}
                         </div>
                       </div>
                     )}
@@ -198,30 +390,110 @@ export function ChatInterface() {
 
       {/* Input Area */}
       <div className="px-4 pb-4">
+        {/* Emoji Picker */}
+        {showEmojiPicker && (
+          <div className="mb-2">
+            <div ref={emojiPickerRef} className="emoji-picker-custom" />
+          </div>
+        )}
+
+        {/* Recording Indicator */}
+        {isRecording && (
+          <div className="mb-2 flex items-center justify-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl">
+            <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+            <span className="text-sm text-red-600 dark:text-red-400 font-medium">
+              Recording... {recordingTime}s
+            </span>
+          </div>
+        )}
+
+        {/* File Preview */}
+        {selectedFile && (
+          <div className="mb-2 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Paperclip size={16} className="text-emerald-600" />
+                <span className="text-sm text-emerald-700 dark:text-emerald-400">{selectedFile.name}</span>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedFile(null)
+                  setFilePreviewUrl(null)
+                }}
+                className="text-emerald-600 hover:text-emerald-700"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            {/* Image Preview */}
+            {filePreviewUrl && (
+              <div className="mt-2">
+                <img 
+                  src={filePreviewUrl} 
+                  alt="Preview" 
+                  className="max-w-full max-h-48 rounded-lg object-contain"
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex items-center gap-3 bg-[#F3F3EE] dark:bg-gray-700 rounded-xl px-4 py-2">
           <input
             type="text"
-            placeholder="Type any message..."
-            value={messageInput}
-            onChange={(e) => setMessageInput(e.target.value)}
+            placeholder={filePreviewUrl ? "Press enter to send image..." : "Type any message..."}
+            value={filePreviewUrl ? "" : messageInput}
+            onChange={(e) => {
+              if (!filePreviewUrl) {
+                setMessageInput(e.target.value)
+              }
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault()
                 handleSendMessage()
               }
             }}
-            disabled={isSending}
+            disabled={isSending || isRecording || !!filePreviewUrl}
             className="flex-1 bg-transparent text-foreground placeholder-gray-400 focus:outline-none disabled:opacity-50 text-sm"
           />
-          <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-500">
-            <Mic size={18} />
+          
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileSelect}
+            className="hidden"
+            accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+          />
+          
+          {/* Voice Recording Button */}
+          <button
+            onClick={isRecording ? handleStopRecording : handleStartRecording}
+            className={`p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors ${
+              isRecording ? 'text-red-500' : 'text-gray-500'
+            }`}
+          >
+            {isRecording ? <Square size={18} /> : <Mic size={18} />}
           </button>
-          <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-500">
+          
+          {/* Emoji Picker Button */}
+          <button
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-500"
+          >
             <Smile size={18} />
           </button>
-          <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-500">
+          
+          {/* File Upload Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors text-gray-500"
+          >
             <Paperclip size={18} />
           </button>
+          
+          {/* Send Button */}
           <button
             onClick={handleSendMessage}
             disabled={!messageInput.trim() || isSending}
