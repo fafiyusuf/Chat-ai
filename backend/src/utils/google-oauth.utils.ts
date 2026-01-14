@@ -24,18 +24,30 @@ interface GoogleUserInfo {
  * Get the callback URL based on environment
  */
 function getCallbackUrl(): string {
-  // Use environment variable if set, otherwise construct from config
+  let callbackUrl: string;
+  
+  // Use environment variable if explicitly set (highest priority)
   if (process.env.GOOGLE_CALLBACK_URL) {
-    return process.env.GOOGLE_CALLBACK_URL;
+    callbackUrl = process.env.GOOGLE_CALLBACK_URL;
   }
-  
-  // In production, use the backend URL (Render deployment)
-  if (process.env.NODE_ENV === 'production') {
-    return `${process.env.BACKEND_URL || config.frontendUrl.replace('3000', '3001')}/api/auth/google/callback`;
+  // In production, use the BACKEND_URL
+  else if (process.env.NODE_ENV === 'production') {
+    if (process.env.BACKEND_URL) {
+      callbackUrl = `${process.env.BACKEND_URL}/api/auth/google/callback`;
+    } else {
+      // Fallback for Render: construct from PORT or use default
+      const port = process.env.PORT || '10000';
+      callbackUrl = `https://chat-ai-mxwy.onrender.com/api/auth/google/callback`;
+      logger.warn('BACKEND_URL not set in production, using hardcoded Render URL');
+    }
   }
-  
   // In development, use localhost:3001 (backend port)
-  return `http://localhost:3001/api/auth/google/callback`;
+  else {
+    callbackUrl = `http://localhost:3001/api/auth/google/callback`;
+  }
+  
+  logger.info(`Google OAuth callback URL: ${callbackUrl}`);
+  return callbackUrl;
 }
 
 /**
