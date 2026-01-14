@@ -4,6 +4,7 @@ import { config } from '../config';
 
 export interface AuthRequest extends Request {
   user?: {
+    id: string;
     userId: string;
     email: string;
   };
@@ -33,7 +34,11 @@ export const authenticate = (
       email: string;
     };
 
-    req.user = decoded;
+    req.user = {
+      id: decoded.userId,
+      userId: decoded.userId,
+      email: decoded.email
+    };
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
@@ -62,7 +67,11 @@ export const optionalAuth = (
         userId: string;
         email: string;
       };
-      req.user = decoded;
+      req.user = {
+        id: decoded.userId,
+        userId: decoded.userId,
+        email: decoded.email
+      };
     }
 
     next();

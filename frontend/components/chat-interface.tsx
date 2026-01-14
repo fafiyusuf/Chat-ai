@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/lib/auth-context"
 import { useAppStore } from "@/lib/store"
-import { Info, Mic, MoreVertical, Paperclip, Phone, Search, Send, Smile, Square, Video, X } from "lucide-react"
+import { ChevronDown, ChevronUp, Info, Mic, MoreVertical, Paperclip, Phone, Search, Send, Smile, Square, Video, X } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
 // Dynamic import for emoji picker (client-side only)
@@ -32,12 +32,17 @@ export function ChatInterface() {
   const [recordingTime, setRecordingTime] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null)
+  const [showMessageSearch, setShowMessageSearch] = useState(false)
+  const [messageSearchQuery, setMessageSearchQuery] = useState("")
+  const [currentSearchIndex, setCurrentSearchIndex] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
   const emojiPickerInstanceRef = useRef<any>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   // Get current session
   const selectedSession = sessions.find(s => s.id === selectedSessionId)
@@ -131,6 +136,56 @@ export function ChatInterface() {
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showEmojiPicker])
+
+  // Filter messages based on search query
+  const filteredMessages = messageSearchQuery.trim() 
+    ? messages.filter(m => 
+        m.content.toLowerCase().includes(messageSearchQuery.toLowerCase())
+      )
+    : []
+
+  // Scroll to search result
+  useEffect(() => {
+    if (filteredMessages.length > 0 && currentSearchIndex < filteredMessages.length) {
+      const messageId = filteredMessages[currentSearchIndex].id
+      const element = messageRefs.current.get(messageId)
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }
+  }, [currentSearchIndex, filteredMessages])
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (showMessageSearch && searchInputRef.current) {
+      searchInputRef.current.focus()
+    }
+  }, [showMessageSearch])
+
+  // Navigate to next/previous search result
+  const goToNextResult = () => {
+    if (filteredMessages.length > 0) {
+      setCurrentSearchIndex((prev) => (prev + 1) % filteredMessages.length)
+    }
+  }
+
+  const goToPrevResult = () => {
+    if (filteredMessages.length > 0) {
+      setCurrentSearchIndex((prev) => (prev - 1 + filteredMessages.length) % filteredMessages.length)
+    }
+  }
+
+  // Check if a message matches the search
+  const isMessageHighlighted = (messageId: string) => {
+    if (!messageSearchQuery.trim()) return false
+    return filteredMessages.some(m => m.id === messageId)
+  }
+
+  // Check if this is the current search result
+  const isCurrentSearchResult = (messageId: string) => {
+    if (filteredMessages.length === 0) return false
+    return filteredMessages[currentSearchIndex]?.id === messageId
+  }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -278,50 +333,130 @@ export function ChatInterface() {
   return (
     <div className="flex-1 bg-white dark:bg-gray-800 rounded-2xl flex flex-col shadow-sm overflow-hidden">
       {/* Header */}
-      <div className="border-b border-gray-100 dark:border-gray-700 p-4 flex items-center justify-between">
-        <button 
-          onClick={toggleInfoPanel}
-          className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg p-2 -ml-2 transition-colors"
-        >
-          {headerInfo.avatar ? (
-            <img
-              src={headerInfo.avatar}
-              alt={headerInfo.name}
-              className="w-10 h-10 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-              {headerInfo.name.slice(0, 2).toUpperCase()}
-            </div>
-          )}
-          <div className="text-left">
-            <h2 className="font-semibold text-foreground">{headerInfo.name}</h2>
-            <p className={`text-xs ${headerInfo.status === "Online" ? "text-green-500" : "text-muted-foreground"}`}>
-              {headerInfo.status}
-            </p>
-          </div>
-        </button>
-
-        <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground">
-            <Search size={20} />
-          </button>
-          <button className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground">
-            <Phone size={20} />
-          </button>
-          <button className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground">
-            <Video size={20} />
-          </button>
+      <div className="border-b border-gray-100 dark:border-gray-700 p-4">
+        <div className="flex items-center justify-between">
           <button 
             onClick={toggleInfoPanel}
-            className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground"
+            className="flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg p-2 -ml-2 transition-colors"
           >
-            <Info size={20} />
+            {headerInfo.avatar ? (
+              <img
+                src={headerInfo.avatar}
+                alt={headerInfo.name}
+                className="w-10 h-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                {headerInfo.name.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div className="text-left">
+              <h2 className="font-semibold text-foreground">{headerInfo.name}</h2>
+              <p className={`text-xs ${headerInfo.status === "Online" ? "text-green-500" : "text-muted-foreground"}`}>
+                {headerInfo.status}
+              </p>
+            </div>
           </button>
-          <button className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground">
-            <MoreVertical size={20} />
-          </button>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => {
+                setShowMessageSearch(!showMessageSearch)
+                if (showMessageSearch) {
+                  setMessageSearchQuery('')
+                  setCurrentSearchIndex(0)
+                }
+              }}
+              className={`p-2 rounded-lg transition-colors ${
+                showMessageSearch 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'hover:bg-muted text-foreground'
+              }`}
+            >
+              <Search size={20} />
+            </button>
+            <button className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground">
+              <Phone size={20} />
+            </button>
+            <button className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground">
+              <Video size={20} />
+            </button>
+            <button 
+              onClick={toggleInfoPanel}
+              className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground"
+            >
+              <Info size={20} />
+            </button>
+            <button className="p-2 hover:bg-muted rounded-lg transition-colors text-foreground">
+              <MoreVertical size={20} />
+            </button>
+          </div>
         </div>
+        
+        {/* Message Search Bar */}
+        {showMessageSearch && (
+          <div className="mt-3 flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2">
+            <Search size={16} className="text-muted-foreground" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search in messages..."
+              value={messageSearchQuery}
+              onChange={(e) => {
+                setMessageSearchQuery(e.target.value)
+                setCurrentSearchIndex(0)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (e.shiftKey) {
+                    goToPrevResult()
+                  } else {
+                    goToNextResult()
+                  }
+                }
+                if (e.key === 'Escape') {
+                  setShowMessageSearch(false)
+                  setMessageSearchQuery('')
+                }
+              }}
+              className="flex-1 bg-transparent text-sm text-foreground placeholder-muted-foreground focus:outline-none"
+            />
+            {messageSearchQuery && (
+              <>
+                <span className="text-xs text-muted-foreground">
+                  {filteredMessages.length > 0 
+                    ? `${currentSearchIndex + 1}/${filteredMessages.length}`
+                    : '0 results'
+                  }
+                </span>
+                <button
+                  onClick={goToPrevResult}
+                  disabled={filteredMessages.length === 0}
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded disabled:opacity-50"
+                >
+                  <ChevronUp size={16} />
+                </button>
+                <button
+                  onClick={goToNextResult}
+                  disabled={filteredMessages.length === 0}
+                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded disabled:opacity-50"
+                >
+                  <ChevronDown size={16} />
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => {
+                setShowMessageSearch(false)
+                setMessageSearchQuery('')
+                setCurrentSearchIndex(0)
+              }}
+              className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Messages Area - Inner box with light green background */}
@@ -345,15 +480,26 @@ export function ChatInterface() {
               </div>
               {messages.map((message) => (
                 <div 
-                  key={message.id} 
-                  className={`flex ${isOwnMessage(message.senderId) ? "justify-end" : "justify-start"}`}
+                  key={message.id}
+                  ref={(el) => {
+                    if (el) messageRefs.current.set(message.id, el)
+                  }}
+                  className={`flex ${isOwnMessage(message.senderId) ? "justify-end" : "justify-start"} ${
+                    isCurrentSearchResult(message.id) ? 'animate-pulse' : ''
+                  }`}
                 >
                   <div className="flex flex-col max-w-[70%]">
                     {!isOwnMessage(message.senderId) && (
                       <div className="flex items-end gap-2">
                         <div
-                          className={`px-4 py-2 rounded-2xl bg-white dark:bg-gray-800 text-foreground shadow-sm ${
+                          className={`px-4 py-2 rounded-2xl text-foreground shadow-sm ${
                             isImageContent(message.content, message.type) ? 'p-2' : ''
+                          } ${
+                            isCurrentSearchResult(message.id)
+                              ? 'bg-yellow-200 dark:bg-yellow-700 ring-2 ring-yellow-400'
+                              : isMessageHighlighted(message.id)
+                              ? 'bg-yellow-100 dark:bg-yellow-800'
+                              : 'bg-white dark:bg-gray-800'
                           }`}
                         >
                           {!isOwnMessage(message.senderId) && selectedSession.isGroup && (
@@ -368,8 +514,14 @@ export function ChatInterface() {
                     {isOwnMessage(message.senderId) && (
                       <div className="flex items-end gap-2 justify-end">
                         <div
-                          className={`px-4 py-2 rounded-2xl bg-emerald-100 dark:bg-emerald-900/50 text-gray-800 dark:text-gray-100 shadow-sm ${
+                          className={`px-4 py-2 rounded-2xl text-gray-800 dark:text-gray-100 shadow-sm ${
                             isImageContent(message.content, message.type) ? 'p-2' : ''
+                          } ${
+                            isCurrentSearchResult(message.id)
+                              ? 'bg-yellow-200 dark:bg-yellow-700 ring-2 ring-yellow-400'
+                              : isMessageHighlighted(message.id)
+                              ? 'bg-yellow-100 dark:bg-yellow-800'
+                              : 'bg-emerald-100 dark:bg-emerald-900/50'
                           }`}
                         >
                           {renderMessageContent(message)}

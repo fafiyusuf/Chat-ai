@@ -54,7 +54,7 @@ export interface ContactInfo {
   joinedDate: string;
 }
 
-export type PageType = "home" | "files" | "settings" | "calls" | "ai-chat" | "profile";
+export type PageType = "home" | "messages" | "files" | "settings" | "calls" | "ai-chat" | "profile" | "archive" | "notifications";
 export type ModalType = "newMessage" | "editProfile" | "newGroup" | "settings" | "addMembers" | null;
 
 interface ModalPosition {

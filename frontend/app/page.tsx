@@ -63,9 +63,30 @@ export default function ChatPage() {
         return <ProfilePage />
       case "ai-chat":
         return <AIChatPage />
+      case "archive":
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-gray-800 rounded-2xl shadow-sm gap-4">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+            </div>
+            <h2 className="text-2xl font-bold text-foreground">Archive</h2>
+            <p className="text-muted-foreground text-center max-w-sm">Your archived conversations will appear here</p>
+          </div>
+        )
+      case "notifications":
+        return (
+          <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-gray-800 rounded-2xl shadow-sm gap-4">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+            </div>
+            <h2 className="text-2xl font-bold text-foreground">Notifications</h2>
+            <p className="text-muted-foreground text-center max-w-sm">Your notifications will appear here</p>
+          </div>
+        )
+      case "messages":
       case "home":
       default:
-        // Home page shows message list + chat interface
+        // Home/Messages page shows message list + chat interface
         return (
           <>
             <MessageList />

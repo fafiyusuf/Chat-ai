@@ -177,7 +177,7 @@ export const usersApi = {
   },
 
   async search(query: string) {
-    const response = await fetchWithAuth(`/api/users/search?q=${encodeURIComponent(query)}`);
+    const response = await fetchWithAuth(`/api/users?search=${encodeURIComponent(query)}`);
     if (!response.ok) throw new Error('Failed to search users');
     return response.json();
   },
