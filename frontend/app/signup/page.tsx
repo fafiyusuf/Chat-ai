@@ -1,7 +1,7 @@
 "use client"
 
 import { useAuth } from "@/lib/auth-context"
-import { Check, Eye, EyeOff, Loader2, MessageCircle } from "lucide-react"
+import { ArrowRight, Check, Eye, EyeOff, Loader2, MessageCircle, Shield, Users, Zap } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
@@ -20,8 +20,22 @@ export default function SignupPage() {
 
   const passwordRequirements = [
     { label: "At least 6 characters", met: password.length >= 6 },
-    { label: "Contains a number", met: /\d/.test(password) },
+    { label: "Contains a number (0-9)", met: /\d/.test(password) },
   ]
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsLoading(true)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/google`)
+      const data = await response.json()
+      if (data.url) {
+        window.location.href = data.url
+      }
+    } catch (err: any) {
+      setError(err.message || "Google sign in failed")
+      setIsLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -50,80 +64,88 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-emerald-50 to-teal-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-10 h-10 bg-emerald-500 rounded-full flex items-center justify-center">
-            <MessageCircle className="w-6 h-6 text-white" />
-          </div>
-          <span className="text-2xl font-bold text-gray-900">Message</span>
+    <div className="min-h-screen bg-gradient-to-br from-[#F3F3EE] via-white to-emerald-50 flex">
+      {/* Left Side - Form */}
+      <div className="flex-1 flex items-center justify-center p-8 lg:p-12 relative overflow-y-auto">
+        <div className="absolute top-8 left-8">
+          <Link href="/" className="flex items-center gap-2 group">
+            <ArrowRight className="w-5 h-5 rotate-180 text-gray-400 group-hover:text-emerald-500 transition-colors" />
+            <span className="text-sm text-gray-500 group-hover:text-emerald-600 transition-colors">Back</span>
+          </Link>
         </div>
 
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-            <p className="text-gray-500 mt-2">Join Message and start chatting</p>
+        <div className="w-full max-w-md my-12">
+          {/* Logo */}
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-200">
+              <MessageCircle className="w-7 h-7 text-white" strokeWidth={2.5} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Sign Up</h2>
+              <p className="text-sm text-gray-500">Secure Your Communications</p>
+            </div>
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-              {error}
+            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-lg text-red-700 text-sm flex items-start gap-3 animate-in slide-in-from-top">
+              <span className="text-lg">⚠️</span>
+              <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Display Name */}
-            <div>
-              <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-2">
-                Full Name
+            <div className="group">
+              <label htmlFor="displayName" className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <span>Full Name</span>
+                <Check className={`w-4 h-4 transition-all ${displayName ? 'text-emerald-500 scale-100' : 'text-gray-300 scale-0'}`} />
               </label>
               <input
                 id="displayName"
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Enter your full name"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="Daniel Ahmadi"
+                className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all placeholder:text-gray-400"
                 required
               />
             </div>
 
-            {/* Username */}
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Username <span className="text-gray-400">(optional)</span>
-              </label>
-              <input
-                id="username"
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))}
-                placeholder="Choose a username"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-              />
-            </div>
-
             {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email
+            <div className="group">
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <span>Email Address</span>
+                <Check className={`w-4 h-4 transition-all ${email.includes('@') ? 'text-emerald-500 scale-100' : 'text-gray-300 scale-0'}`} />
               </label>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                placeholder="!!Danielahmadi@gmail.com"
+                className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all placeholder:text-gray-400"
                 required
               />
             </div>
 
+            {/* Username (Optional) */}
+            <div className="group">
+              <label htmlFor="username" className="block text-sm font-semibold text-gray-700 mb-2">
+                Username <span className="text-gray-400 font-normal text-xs">(optional)</span>
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))}
+                placeholder="@danielahmadi"
+                className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all placeholder:text-gray-400"
+              />
+            </div>
+
             {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="group">
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
                 Password
               </label>
               <div className="relative">
@@ -132,56 +154,79 @@ export default function SignupPage() {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Create a password"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all pr-12"
+                  placeholder="••••••••"
+                  className="w-full px-4 py-3.5 bg-white border-2 border-gray-200 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 transition-all pr-12 placeholder:text-gray-400"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
               {/* Password Requirements */}
               {password && (
-                <div className="mt-2 space-y-1">
+                <div className="mt-3 space-y-2 bg-emerald-50/50 border border-emerald-100 rounded-lg p-3">
                   {passwordRequirements.map((req, index) => (
                     <div
                       key={index}
-                      className={`flex items-center gap-2 text-xs ${
-                        req.met ? "text-emerald-600" : "text-gray-400"
+                      className={`flex items-center gap-2 text-xs transition-all ${
+                        req.met ? "text-emerald-700" : "text-gray-500"
                       }`}
                     >
-                      <Check size={12} className={req.met ? "opacity-100" : "opacity-0"} />
-                      {req.label}
+                      <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                        req.met ? "bg-emerald-500" : "bg-gray-200"
+                      }`}>
+                        <Check size={10} className={`${req.met ? "text-white" : "text-transparent"}`} />
+                      </div>
+                      <span className="font-medium">{req.label}</span>
                     </div>
                   ))}
+                  <div
+                    className={`flex items-center gap-2 text-xs transition-all ${
+                      /[a-z]/.test(password) && /[A-Z]/.test(password) ? "text-emerald-700" : "text-gray-400"
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all ${
+                      /[a-z]/.test(password) && /[A-Z]/.test(password) ? "bg-emerald-500" : "bg-gray-200"
+                    }`}>
+                      <Check size={10} className={`${/[a-z]/.test(password) && /[A-Z]/.test(password) ? "text-white" : "text-transparent"}`} />
+                    </div>
+                    <span className="font-medium">Lowercase (a-z) and uppercase (A-Z)</span>
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Confirm Password */}
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                Confirm Password
+            <div className="group">
+              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
+                Re-Type Password
               </label>
               <input
                 id="confirmPassword"
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm your password"
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all ${
+                placeholder="••••••••"
+                className={`w-full px-4 py-3.5 border-2 rounded-xl focus:outline-none focus:ring-4 transition-all placeholder:text-gray-400 ${
                   confirmPassword && confirmPassword !== password
-                    ? "border-red-300 bg-red-50"
-                    : "border-gray-200"
+                    ? "border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-100"
+                    : "border-gray-200 bg-white focus:border-emerald-500 focus:ring-emerald-100"
                 }`}
                 required
               />
               {confirmPassword && confirmPassword !== password && (
-                <p className="mt-1 text-xs text-red-500">Passwords do not match</p>
+                <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
+                  <span className="text-sm">⚠</span> Passwords do not match
+                </p>
+              )}
+              {confirmPassword && confirmPassword === password && password !== "" && (
+                <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
+                  <Check size={12} /> Passwords match!
+                </p>
               )}
             </div>
 
@@ -189,7 +234,7 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={isLoading || (confirmPassword !== "" && password !== confirmPassword)}
-              className="w-full py-3 bg-emerald-500 text-white font-semibold rounded-lg hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-6"
+              className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold rounded-xl hover:from-emerald-600 hover:to-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 mt-6 group"
             >
               {isLoading ? (
                 <>
@@ -197,25 +242,181 @@ export default function SignupPage() {
                   Creating account...
                 </>
               ) : (
-                "Create Account"
+                <>
+                  Sign Up
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </>
               )}
             </button>
           </form>
 
+          {/* Divider */}
+          <div className="flex items-center gap-4 my-8">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+            <span className="text-sm text-gray-400 font-medium">OR</span>
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+          </div>
+
+          {/* Google Sign In */}
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={isLoading}
+            className="w-full py-3.5 px-4 bg-white border-2 border-gray-200 rounded-xl hover:border-gray-300 hover:bg-gray-50 text-gray-700 font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 group"
+          >
+            <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              />
+            </svg>
+            <span className="group-hover:text-gray-900 transition-colors">Continue with Google</span>
+          </button>
+
           {/* Sign In Link */}
-          <p className="text-center text-gray-500 mt-6">
+          <p className="text-center text-gray-600 mt-8">
             Already have an account?{" "}
-            <Link href="/login" className="text-emerald-600 font-semibold hover:text-emerald-700">
+            <Link href="/login" className="text-emerald-600 font-semibold hover:text-emerald-700 underline-offset-4 hover:underline transition-all">
               Sign in
             </Link>
           </p>
+
+          {/* Terms */}
+          <p className="text-center text-gray-400 text-xs mt-6">
+            By signing up, you agree to our{" "}
+            <Link href="/terms" className="text-gray-500 hover:text-gray-700 underline">Terms</Link>
+            {" "}and{" "}
+            <Link href="/privacy" className="text-gray-500 hover:text-gray-700 underline">Privacy Policy</Link>
+          </p>
+        </div>
+      </div>
+
+      {/* Right Side - Decorative */}
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-500 relative overflow-hidden p-12 items-center justify-center">
+        {/* Floating decorative shapes */}
+        <div className="absolute top-20 right-20 w-72 h-72 bg-white/10 backdrop-blur-lg rounded-3xl rotate-12 animate-float"></div>
+        <div className="absolute bottom-32 left-20 w-56 h-56 bg-white/10 backdrop-blur-lg rounded-3xl -rotate-12 animate-float-delayed"></div>
+        
+        {/* Main content */}
+        <div className="relative z-10 space-y-6 max-w-lg">
+          {/* Welcome Message */}
+          <div className="bg-white rounded-3xl p-8 shadow-2xl animate-slide-in-right">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">
+              Join <span className="text-emerald-600">Message</span>
+            </h2>
+            <p className="text-gray-600 text-lg leading-relaxed">
+              Start secure conversations with friends, family, and colleagues. Your privacy, guaranteed.
+            </p>
+          </div>
+
+          {/* Features Grid */}
+          <div className="grid grid-cols-2 gap-4 animate-slide-in-right-delayed">
+            <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl">
+              <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center mb-4">
+                <Shield className="w-6 h-6 text-emerald-600" />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-2">End-to-End Encryption</h3>
+              <p className="text-sm text-gray-600">Your messages are completely private and secure</p>
+            </div>
+
+            <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl">
+              <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
+                <Zap className="w-6 h-6 text-blue-600" />
+              </div>
+              <h3 className="font-bold text-gray-900 mb-2">Lightning Fast</h3>
+              <p className="text-sm text-gray-600">Real-time messaging with instant delivery</p>
+            </div>
+
+            <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl col-span-2">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center shrink-0">
+                  <Users className="w-6 h-6 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900 mb-2">Group Chats & Channels</h3>
+                  <p className="text-sm text-gray-600">Connect with multiple people at once. Perfect for teams and communities.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="bg-white/95 backdrop-blur rounded-2xl p-6 shadow-xl flex items-center justify-around animate-slide-in-right-more-delayed">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-gray-900">10M+</div>
+              <div className="text-sm text-gray-600 mt-1">Active Users</div>
+            </div>
+            <div className="w-px h-12 bg-gray-200"></div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-gray-900">150+</div>
+              <div className="text-sm text-gray-600 mt-1">Countries</div>
+            </div>
+            <div className="w-px h-12 bg-gray-200"></div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-gray-900">99.9%</div>
+              <div className="text-sm text-gray-600 mt-1">Uptime</div>
+            </div>
+          </div>
         </div>
 
-        {/* Footer */}
-        <p className="text-center text-gray-400 text-sm mt-6">
-          By signing up, you agree to our Terms and Privacy Policy
-        </p>
+        {/* Animated background elements */}
+        <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-white/40 rounded-full animate-ping"></div>
+        <div className="absolute top-1/2 right-1/3 w-3 h-3 bg-white/30 rounded-full animate-pulse"></div>
+        <div className="absolute bottom-1/3 left-1/2 w-2 h-2 bg-white/40 rounded-full animate-ping delay-700"></div>
       </div>
+
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px) rotate(12deg); }
+          50% { transform: translateY(-20px) rotate(12deg); }
+        }
+        @keyframes float-delayed {
+          0%, 100% { transform: translateY(0px) rotate(-12deg); }
+          50% { transform: translateY(-30px) rotate(-12deg); }
+        }
+        @keyframes slide-in-right {
+          from { opacity: 0; transform: translateX(50px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slide-in-right-delayed {
+          from { opacity: 0; transform: translateX(50px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slide-in-right-more-delayed {
+          from { opacity: 0; transform: translateX(50px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+        .animate-float {
+          animation: float 6s ease-in-out infinite;
+        }
+        .animate-float-delayed {
+          animation: float-delayed 8s ease-in-out infinite;
+        }
+        .animate-slide-in-right {
+          animation: slide-in-right 0.6s ease-out;
+        }
+        .animate-slide-in-right-delayed {
+          animation: slide-in-right-delayed 0.8s ease-out;
+        }
+        .animate-slide-in-right-more-delayed {
+          animation: slide-in-right-more-delayed 1s ease-out;
+        }
+        .delay-700 {
+          animation-delay: 0.7s;
+        }
+      `}</style>
     </div>
   )
 }
