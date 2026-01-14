@@ -1,0 +1,152 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ONLINE
+  OFFLINE
+  AWAY
+}
+
+enum AuthProvider {
+  LOCAL
+  GOOGLE
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  username      String?       @unique
+  password      String?       // null for OAuth users
+  displayName   String?
+  avatarUrl     String?
+  bio           String?
+  status        UserStatus    @default(OFFLINE)
+  lastSeen      DateTime      @default(now())
+  authProvider  AuthProvider  @default(LOCAL)
+  googleId      String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  sentMessages          Message[]           @relation("SentMessages")
+  receivedMessages      Message[]           @relation("ReceivedMessages")
+  chatSessions          ChatSessionUser[]
+  refreshTokens         RefreshToken[]
+  aiChatSessions        AIChatSession[]
+
+  @@index([email])
+  @@index([status])
+  @@index([googleId])
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([token])
+}
+
+model ChatSession {
+  id          String            @id @default(uuid())
+  name        String?           // Optional session name
+  isGroup     Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  users       ChatSessionUser[]
+  messages    Message[]
+
+  @@index([createdAt])
+}
+
+model ChatSessionUser {
+  id            String      @id @default(uuid())
+  userId        String
+  sessionId     String
+  joinedAt      DateTime    @default(now())
+  lastReadAt    DateTime    @default(now())
+  
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sessionId])
+  @@index([userId])
+  @@index([sessionId])
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  FILE
+  SYSTEM
+}
+
+model Message {
+  id          String      @id @default(uuid())
+  content     String
+  type        MessageType @default(TEXT)
+  senderId    String
+  receiverId  String?     // For direct messages
+  sessionId   String
+  isRead      Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  sender      User        @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User?       @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  session     ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+// AI Chat Session (Bonus Feature)
+model AIChatSession {
+  id          String            @id @default(uuid())
+  userId      String
+  title       String            @default("New AI Chat")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    AIMessage[]
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum AIMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model AIMessage {
+  id          String        @id @default(uuid())
+  sessionId   String
+  role        AIMessageRole
+  content     String
+  createdAt   DateTime      @default(now())
+
+  session     AIChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([createdAt])
+}
