@@ -63,7 +63,18 @@ passport.use(
         }
 
         logger.info(`Google OAuth success for user: ${email}`);
-        return done(null, user);
+        // Map Prisma user to Express User type
+        const expressUser: Express.User = {
+          id: user.id,
+          userId: user.id,
+          email: user.email,
+          username: user.username,
+          displayName: user.displayName,
+          avatarUrl: user.avatarUrl,
+          googleId: user.googleId,
+          status: user.status,
+        };
+        return done(null, expressUser);
       } catch (error) {
         logger.error('Google OAuth error:', error);
         return done(error as Error, undefined);
@@ -83,7 +94,22 @@ passport.deserializeUser(async (id: string, done) => {
     const user = await prisma.user.findUnique({
       where: { id },
     });
-    done(null, user);
+    if (user) {
+      // Map Prisma user to Express User type
+      const expressUser: Express.User = {
+        id: user.id,
+        userId: user.id,
+        email: user.email,
+        username: user.username,
+        displayName: user.displayName,
+        avatarUrl: user.avatarUrl,
+        googleId: user.googleId,
+        status: user.status,
+      };
+      done(null, expressUser);
+    } else {
+      done(null, null);
+    }
   } catch (error) {
     done(error, null);
   }
