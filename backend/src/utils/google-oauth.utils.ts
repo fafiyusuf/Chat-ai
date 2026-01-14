@@ -21,6 +21,24 @@ interface GoogleUserInfo {
 }
 
 /**
+ * Get the callback URL based on environment
+ */
+function getCallbackUrl(): string {
+  // Use environment variable if set, otherwise construct from config
+  if (process.env.GOOGLE_CALLBACK_URL) {
+    return process.env.GOOGLE_CALLBACK_URL;
+  }
+  
+  // In production, use the backend URL (Render deployment)
+  if (process.env.NODE_ENV === 'production') {
+    return `${process.env.BACKEND_URL || config.frontendUrl.replace('3000', '3001')}/api/auth/google/callback`;
+  }
+  
+  // In development, use localhost:3001 (backend port)
+  return `http://localhost:3001/api/auth/google/callback`;
+}
+
+/**
  * Get Google OAuth URL for user to authorize
  */
 export function getGoogleAuthUrl(): string {
@@ -28,7 +46,7 @@ export function getGoogleAuthUrl(): string {
   
   const options = {
     client_id: config.google.clientId,
-    redirect_uri: `${config.frontendUrl.replace('3000', '3001')}/api/auth/google/callback`,
+    redirect_uri: getCallbackUrl(),
     response_type: 'code',
     scope: [
       'https://www.googleapis.com/auth/userinfo.profile',
@@ -52,7 +70,7 @@ export async function getGoogleAccessToken(code: string): Promise<GoogleTokenRes
     code,
     client_id: config.google.clientId,
     client_secret: config.google.clientSecret,
-    redirect_uri: `${config.frontendUrl.replace('3000', '3001')}/api/auth/google/callback`,
+    redirect_uri: getCallbackUrl(),
     grant_type: 'authorization_code',
   };
 
