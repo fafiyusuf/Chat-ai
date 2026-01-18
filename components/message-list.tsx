@@ -399,8 +399,8 @@ export function MessageList() {
 
   return (
     <div
-      className="w-full lg:w-[352px] bg-[#FFFFFF] dark:bg-[#1C1C1C] flex flex-col overflow-hidden flex-shrink-0"
-      style={{ padding: "24px", gap: "24px", borderRadius: "24px" }}>
+      className="w-full lg:w-[352px] bg-[#FFFFFF] dark:bg-[#1C1C1C] flex flex-col overflow-hidden flex-shrink-0 rounded-3xl"
+      style={{ padding: "24px", gap: "24px" }}>
       {/* User Info Section */}
 
       {/* <div className="flex items-center gap-3 mb-4">
